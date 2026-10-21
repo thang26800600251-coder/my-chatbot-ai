@@ -3,9 +3,9 @@ from google import genai
 from google.genai import types
 
 # Cấu hình giao diện
-st.set_page_config(page_title="Chatbot AI Siêu Tốc", page_icon="⚡", layout="centered")
-st.title("⚡ Chatbot AI Siêu Tốc")
-st.caption("Trợ lý AI tối ưu phản hồi cực nhanh")
+st.set_page_config(page_title="Chatbot AI của Thắng", page_icon="⚡", layout="centered")
+st.title("⚡ Chatbot AI của Thắng")
+st.caption("Trợ lý AI phản hồi")
 
 # Lấy API Key từ Secrets
 api_key = st.secrets.get("GEMINI_API_KEY")
