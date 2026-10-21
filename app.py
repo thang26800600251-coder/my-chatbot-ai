@@ -13,32 +13,53 @@ if not api_key:
     st.error("⚠️ Chưa cấu hình GEMINI_API_KEY! Hãy thêm API Key trong phần Secrets của Streamlit.")
     st.stop()
 
-# Khởi tạo client kết nối Gemini API
+# Khởi tạo Client Gemini
 client = genai.Client(api_key=api_key)
 
-# Khởi tạo lịch sử chat
+# Khởi tạo lịch sử chat trong session nếu chưa có
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Hiển thị lại các tin nhắn cũ
+# Hiển thị lại lịch sử trò chuyện cũ
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
 # Xử lý khi người dùng nhập tin nhắn
 if prompt := st.chat_input("Hỏi tôi bất cứ điều gì..."):
+    # 1. Lưu và hiển thị câu hỏi người dùng
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
+    # 2. Đóng gói lịch sử trò chuyện
+    formatted_contents = []
+    for msg in st.session_state.messages:
+        role_in_api = "model" if msg["role"] == "assistant" else "user"
+        formatted_contents.append({
+            "role": role_in_api,
+            "parts": [{"text": msg["content"]}]
+        })
+
+    # 3. Gửi câu hỏi và phát luồng dữ liệu (Streaming) giúp chữ hiện ra ngay lập tức
     with st.chat_message("assistant"):
-        with st.spinner("AI đang suy nghĩ..."):
-            try:
-                response = client.models.generate_content(
-                    model="gemini-3.8-flash",
-                    contents=prompt,
-                )
-                st.markdown(response.text)
-                st.session_state.messages.append({"role": "assistant", "content": response.text})
-            except Exception as e:
-                st.error(f"Lỗi: {e}")
+        try:
+            # Gọi API dạng Stream
+            response_stream = client.models.generate_content_stream(
+                model="gemini-3.8-flash",
+                contents=formatted_contents,
+            )
+
+            # Hàm tách từng mảnh chữ trả về
+            def stream_parser():
+                for chunk in response_stream:
+                    if chunk.text:
+                        yield chunk.text
+
+            # Hiển thị hiệu ứng gõ chữ thời gian thực
+            full_response = st.write_stream(stream_parser)
+            
+            # Lưu lại câu trả lời hoàn chỉnh vào lịch sử
+            st.session_state.messages.append({"role": "assistant", "content": full_response})
+        except Exception as e:
+            st.error(f"Lỗi: {e}")
