@@ -1,55 +1,67 @@
 import streamlit as st
 from google import genai
+from google.genai import types
 
-# Cấu hình giao diện trang web
-st.set_page_config(page_title="Chatbot AI", page_icon="🤖", layout="centered")
-st.title("🤖 Chatbot AI của tôi")
-st.caption("Trợ lý AI thông minh tích hợp Google Gemini")
+# Cấu hình giao diện
+st.set_page_config(page_title="Chatbot AI Siêu Tốc", page_icon="⚡", layout="centered")
+st.title("⚡ Chatbot AI Siêu Tốc")
+st.caption("Trợ lý AI tối ưu phản hồi cực nhanh")
 
-# Lấy API Key từ cấu hình bí mật của Streamlit
+# Lấy API Key từ Secrets
 api_key = st.secrets.get("GEMINI_API_KEY")
-
 if not api_key:
-    st.error("⚠️ Chưa cấu hình GEMINI_API_KEY! Hãy thêm API Key trong phần Secrets của Streamlit.")
+    st.error("⚠️ Chưa cấu hình GEMINI_API_KEY trong Secrets!")
     st.stop()
 
-# Khởi tạo Client Gemini
-client = genai.Client(api_key=api_key)
+# Cache kết nối Client để không tạo lại kết nối mỗi lần nhắn
+@st.cache_resource
+def get_client(key):
+    return genai.Client(api_key=key)
 
-# Khởi tạo lịch sử chat trong session nếu chưa có
+client = get_client(api_key)
+
+# Quản lý lịch sử trò chuyện
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Hiển thị lại lịch sử trò chuyện cũ
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# Xử lý khi người dùng nhập tin nhắn
+# Xử lý tin nhắn người dùng
 if prompt := st.chat_input("Hỏi tôi bất cứ điều gì..."):
-    # 1. Lưu và hiển thị câu hỏi người dùng
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # 2. Đóng gói toàn bộ lịch sử trò chuyện gửi cho Gemini để AI "nhớ" ngữ cảnh
-    formatted_contents = []
-    for msg in st.session_state.messages:
-        role_in_api = "model" if msg["role"] == "assistant" else "user"
-        formatted_contents.append({
-            "role": role_in_api,
+    # TỐI ƯU 1: Chỉ đọc 4 câu hội thoại gần nhất để xử lý dữ liệu nhanh nhất
+    recent_messages = st.session_state.messages[-4:]
+    formatted_contents = [
+        {
+            "role": "model" if msg["role"] == "assistant" else "user",
             "parts": [{"text": msg["content"]}]
-        })
+        }
+        for msg in recent_messages
+    ]
 
-    # 3. Gửi câu hỏi và hiển thị câu trả lời từ AI
+    # TỐI ƯU 2: Cấu hình ép AI trả lời ngắn gọn, trực diện
+    config = types.GenerateContentConfig(
+        system_instruction="Bạn là trợ lý AI siêu tốc. Luôn trả lời ngắn gọn, đi thẳng vào vấn đề, không rườm rà hay chào hỏi thừa thải.",
+        max_output_tokens=500,  # Giới hạn độ dài giúp sinh chữ siêu nhanh
+        temperature=0.5,
+    )
+
     with st.chat_message("assistant"):
-        with st.spinner("AI đang suy nghĩ..."):
-            try:
-                response = client.models.generate_content(
-                    model="gemini-3.8-flash",
-                    contents=formatted_contents,
-                )
-                st.markdown(response.text)
-                st.session_state.messages.append({"role": "assistant", "content": response.text})
-            except Exception as e:
-                st.error(f"Lỗi: {e}")
+        try:
+            # Phát luồng chữ thời gian thực
+            response_stream = client.models.generate_content_stream(
+                model="gemini-3.8-flash",
+                contents=formatted_contents,
+                config=config,
+            )
+            full_response = st.write_stream(
+                chunk.text for chunk in response_stream if chunk.text
+            )
+            st.session_state.messages.append({"role": "assistant", "content": full_response})
+        except Exception as e:
+            st.error(f"Lỗi: {e}")
