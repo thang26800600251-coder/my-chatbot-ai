@@ -35,7 +35,7 @@ if prompt := st.chat_input("Hỏi tôi bất cứ điều gì..."):
         with st.spinner("AI đang suy nghĩ..."):
             try:
                 response = client.models.generate_content(
-                    model="gemini-2.5-flash",
+                    model="gemini-3.8-flash",
                     contents=prompt,
                 )
                 st.markdown(response.text)
