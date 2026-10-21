@@ -41,25 +41,20 @@ if prompt := st.chat_input("Hỏi tôi bất cứ điều gì..."):
             "parts": [{"text": msg["content"]}]
         })
 
-    # 3. Gửi câu hỏi và phát luồng dữ liệu (Streaming) giúp chữ hiện ra ngay lập tức
+    # 3. Gửi câu hỏi và hiển thị phản hồi dạng streaming
     with st.chat_message("assistant"):
         try:
-            # Gọi API dạng Stream
             response_stream = client.models.generate_content_stream(
                 model="gemini-3.8-flash",
                 contents=formatted_contents,
             )
 
-            # Hàm tách từng mảnh chữ trả về
-            def stream_parser():
-                for chunk in response_stream:
-                    if chunk.text:
-                        yield chunk.text
-
-            # Hiển thị hiệu ứng gõ chữ thời gian thực
-            full_response = st.write_stream(stream_parser)
+            # Đọc từng đoạn chữ trả về và hiển thị hiệu ứng gõ trực tiếp
+            full_response = st.write_stream(
+                chunk.text for chunk in response_stream if chunk.text
+            )
             
-            # Lưu lại câu trả lời hoàn chỉnh vào lịch sử
+            # Lưu lại câu trả lời vào lịch sử
             st.session_state.messages.append({"role": "assistant", "content": full_response})
         except Exception as e:
             st.error(f"Lỗi: {e}")
